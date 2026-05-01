@@ -1,106 +1,79 @@
-# 🗳️ Docker Voting App (From Docker Run → Docker Compose)
+# 🐳 Running the Voting App using Docker Run (Step by Step)
 
-## 📌 What this project is about
-
-This project is a simple multi-container application that simulates a voting system.
-
-It has:
-- A voting app where users vote
-- A Redis queue to store votes temporarily
-- A worker service that processes votes
-- A PostgreSQL database to store results
-- A result app to display outcomes
+This section documents how the application was initially run using individual docker run commands before moving to Docker Compose.
 
 ---
 
-## 🤔 Why I built this
+## 🔹 Step 1: Create a Network
 
-I wanted to understand how real-world applications run as multiple services instead of a single app.
+All containers must be able to communicate, so we create a custom network:
 
-This project helped me learn:
-- How containers communicate
-- How to manage multiple services
-- How to debug issues when services depend on each other
+bash docker network create voting-app 
 
 ---
 
-## 🐳 Phase 1: Using Docker (docker run)
+## 🔹 Step 2: Run Redis
 
-Initially, I ran each container manually using docker run.
+Redis acts as a message queue between the voting app and worker.
 
-Example:
-bash docker run -d --name redis redis docker run -d --name db -e POSTGRES_PASSWORD=postgres postgres:15-alpine 
-
-### Problems I faced:
-- Managing multiple commands was messy
-- Networking had to be handled manually
-- Container naming issues caused connection failures
-- Hard to restart or reproduce setup
-
-👉 This approach worked, but wasn’t scalable or clean
+bash docker run -d \ --name redis \ --network voting-app \ redis 
 
 ---
 
-## ⚙️ Phase 2: Moving to Docker Compose
+## 🔹 Step 3: Run PostgreSQL (Database)
 
-To solve the above problems, I moved to Docker Compose
+PostgreSQL stores the processed voting results.
 
-With Compose:
-- All services are defined in one file
-- Networking is automatic
-- Services communicate using service names (redis, db)
-- Easy to start/stop everything with one command
-
-Run everything:
-bash docker compose up -d 
+bash docker run -d \ --name db \ --network voting-app \ -e POSTGRES_USER=postgres \ -e POSTGRES_PASSWORD=postgres \ -e POSTGRES_DB=postgres \ postgres:15-alpine 
 
 ---
 
-## 🧠 Key Concept I Learned
+## 🔹 Step 4: Run Voting App
 
-> In Docker Compose:
-> Service name = hostname
+Frontend where users cast their vote.
 
-Example:
-python redis_host = "redis" db_host = "db" 
-
-No need for IP addresses or linking containers.
+bash docker run -d \ --name vote \ --network voting-app \ -p 1717:80 \ votingimg 
 
 ---
 
-## 🌐 Access the application
+## 🔹 Step 5: Run Worker
 
-- Voting App → http://<EC2-IP>:1717  
-- Result App → http://<EC2-IP>:1818  
+Worker consumes data from Redis and writes to PostgreSQL.
 
----
-
-## 📂 Project Structure
-
-text . ├── docker-compose.yml ├── README.md └── notes/     └── docker-run-commands.md 
+bash docker run -d \ --name worker \ --network voting-app \ workercont 
 
 ---
 
-## 💡 Key Learnings
+## 🔹 Step 6: Run Result App
 
-- Difference between docker run and Docker Compose  
-- Container networking and service discovery  
-- Debugging container failures (logs, exit issues)  
-- Importance of clean orchestration  
+Displays the voting results stored in PostgreSQL.
 
----
-
-## 🚀 What I would improve next
-
-- Add health checks for services  
-- Add restart policies  
-- Move this setup to Kubernetes  
+bash docker run -d \ --name result \ --network voting-app \ -p 1818:80 \ resultimage 
 
 ---
 
-## 🧑‍💻 Final Thoughts
+## 🧠 Key Observations
 
-Starting with docker run helped me understand the basics,  
-but moving to Docker Compose made the setup cleaner, scalable, and closer to real-world usage.
+- Containers communicate using container names (redis, db)
+- Manual setup requires careful ordering and configuration
+- Debugging requires checking logs individually
 
-This project helped me connect theory with practical DevOps workflo
+---
+
+## ⚠️ Limitations of this approach
+
+- Multiple commands to manage
+- Hard to maintain and scale
+- Networking and dependencies handled manually
+
+---
+
+## 🚀 Why moved to Docker Compose
+
+To simplify:
+- One file for all services
+- Automatic networking
+- Service discovery using service names
+- Easier startup and management
+
+bash docker compose up -d
